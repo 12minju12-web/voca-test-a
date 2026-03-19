@@ -27,13 +27,12 @@
         
         <div id="login-box" class="hidden">
             <h2>단어 시험</h2>
-            <p style="font-size:0.9rem; color:#888;">팀을 먼저 선택한 후 이름을 골라주세요.</p>
             <div class="team-btns">
                 <button type="button" class="team-btn" id="btnA" onclick="setT('A')">A팀</button>
                 <button type="button" class="team-btn" id="btnB" onclick="setT('B')">B팀</button>
             </div>
             <select id="name-sel" class="hidden"><option value="">이름을 선택하세요</option></select>
-            <button id="start-btn" onclick="start()" class="hidden" style="background:#2ecc71; margin-top:15px;">시험 시작하기</button>
+            <button id="start-btn" onclick="start()" class="hidden" style="background:#2ecc71; margin-top:15px;">시험 시작</button>
         </div>
 
         <div id="exam-box" class="hidden">
@@ -44,7 +43,7 @@
         </div>
 
         <div id="result-box" class="hidden">
-            <h2>시험 종료! 🎉</h2>
+            <h2>시험 결과 🎉</h2>
             <h1 id="score-text" style="color:#4a90e2; font-size:3.5rem; margin: 15px 0;">0 / 0</h1>
             <div id="wrong-list" style="max-height: 250px; overflow-y: auto; text-align:left; border-top: 1px solid #eee; padding-top: 10px;"></div>
             <button onclick="location.reload()" style="margin-top:20px;">처음으로</button>
@@ -52,24 +51,23 @@
     </div>
 
     <script>
-        /** ★ 구글 앱스크립트 배포 주소를 아래에 넣으세요 ★ **/
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbznZWh9XEnBH8xSEhB4r_byOwy_YTREQzgMY8oduIRuN184nwR83N8bSRpthQpqh0l3Yw/exec";
+        /** ★ 구글 앱스크립트 [새 배포 URL]을 아래에 꼭 넣으세요 ★ **/
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwM2umc4P5hLaaG5vkH-Z6ldsi-ayQQT0PAEl9kiaswXn5H_nLL3XZCkbywOjDmKUKL5w/exec";
 
         let namesByTeam = {}, questions = [], submittedToday = [], currentIdx = 0, answers = [], team = "";
 
-        // 페이지 접속 시 명단 및 중복체크 데이터 가져오기
+        // 초기 로드 (명단 및 중복 확인)
         window.onload = () => {
             fetch(SCRIPT_URL + "?type=init")
             .then(res => res.json())
             .then(d => {
                 namesByTeam = d.namesByTeam; 
-                submittedToday = d.submittedToday;
+                submittedToday = d.submittedToday || [];
                 document.getElementById('load-box').classList.add('hidden');
                 document.getElementById('login-box').classList.remove('hidden');
-            }).catch(e => alert("데이터를 불러오지 못했습니다. 앱스크립트 배포 설정을 확인하세요."));
+            }).catch(e => alert("데이터 로드 실패! URL과 배포 설정을 확인하세요."));
         };
 
-        // 팀 선택
         function setT(t) {
             team = t;
             document.getElementById('btnA').className = (t==='A'?'team-btn active':'team-btn');
@@ -87,11 +85,10 @@
             }
         }
 
-        // 시험 시작
         function start() {
             const name = document.getElementById('name-sel').value;
             if(!name || !team) return alert('팀과 이름을 선택하세요!');
-            if(submittedToday.includes(name + "|" + team)) return alert('이미 오늘 시험을 제출했습니다!');
+            if(submittedToday.includes(name + "|" + team)) return alert('이미 오늘 제출했습니다!');
             
             document.getElementById('login-box').innerHTML = '<h3>시험지 로드 중...</h3><div class="loader"></div>';
             fetch(SCRIPT_URL + "?type=quiz&team=" + team)
@@ -105,7 +102,6 @@
             });
         }
 
-        // 문제 표시
         function show() {
             document.getElementById('q-word').innerText = questions[currentIdx].eng;
             document.getElementById('c-idx').innerText = currentIdx + 1;
@@ -113,12 +109,10 @@
             input.value = ''; input.focus();
         }
 
-        // 정답 비교용 클리닝
         function clean(t) {
             return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim();
         }
 
-        // 다음 문제 클릭
         function next() {
             const u = document.getElementById('ans-in').value.trim() || "(빈칸)";
             const c = questions[currentIdx].kor;
@@ -131,9 +125,9 @@
             else finish();
         }
 
-        // ★ 최종 제출 (보안 우회 및 무한로딩 방지)
+        // ★ 핵심 제출 함수 (무한로딩 방지 + 백그라운드 전송)
         function finish() {
-            // 1. 화면 즉시 전환 (서버 응답 상관없이)
+            // 1. 화면 즉시 전환
             document.getElementById('exam-box').classList.add('hidden');
             document.getElementById('result-box').classList.remove('hidden');
             
@@ -143,7 +137,7 @@
             const list = document.getElementById('wrong-list');
             const wrongs = answers.filter(a => !a.isCorrect);
             if(wrongs.length === 0) {
-                list.innerHTML = '<p style="text-align:center; font-weight:bold;">모두 정답입니다! 완벽해요! 👍</p>';
+                list.innerHTML = '<p style="text-align:center; font-weight:bold;">완벽합니다! 모두 정답이에요! 👍</p>';
                 confetti();
             } else {
                 wrongs.forEach(a => {
@@ -153,7 +147,7 @@
                 });
             }
 
-            // 2. 백그라운드에서 조용히 전송 (no-cors 모드)
+            // 2. 서버 전송 (보안 통과를 위해 text/plain으로 속여서 전송)
             const payload = {
                 fullName: document.getElementById('name-sel').value,
                 team: team,
@@ -162,13 +156,13 @@
 
             fetch(SCRIPT_URL, {
                 method: "POST",
-                mode: "no-cors", // 보안 정책 우회의 핵심
-                headers: { "Content-Type": "text/plain" }, // 단순 텍스트로 위장
+                mode: "no-cors", // 이 설정이 있어야 깃허브에서 데이터가 나갑니다.
+                headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify(payload)
-            }).catch(e => console.log("전송 시도됨"));
+            }).then(() => console.log("전송 시도 완료"))
+              .catch(e => console.log("전송 오류 발생(무시)"));
         }
 
-        // 엔터키 지원
         document.getElementById('ans-in').addEventListener('keypress', e => { if(e.key === 'Enter') next(); });
     </script>
 </body>
