@@ -7,144 +7,136 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         :root { --primary: #4a90e2; --bg: #f5f7fa; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        #app { background: white; width: 95%; max-width: 450px; padding: 2rem; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
-        .hidden { display: none !important; }
-        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 1rem; }
+        body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #app { background: white; width: 90%; max-width: 500px; padding: 2rem; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        .hidden { display: none; }
+        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 1rem; }
         button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; }
-        .team-btns { display: flex; gap: 8px; margin: 10px 0; }
-        .team-btn { flex: 1; background: #eee; color: #333; border: 2px solid transparent; }
-        .team-btn.active { background: var(--primary); color: white; border-color: #2a6dbd; }
-        .wrong-item { background: #fff1f0; border: 1px solid #ffa39e; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: left; font-size: 0.9rem; }
+        .wrong-item { background: #fff1f0; border: 1px solid #ffa39e; padding: 12px; margin: 8px 0; border-radius: 8px; text-align: left; font-size: 0.95rem; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div id="app">
-        <div id="load-box"><h3>데이터 로딩 중...</h3><div class="loader"></div></div>
-        <div id="login-box" class="hidden">
-            <h2>단어 시험</h2>
-            <div class="team-btns">
-                <button type="button" class="team-btn" id="btnA" onclick="setT('A')">A팀</button>
-                <button type="button" class="team-btn" id="btnB" onclick="setT('B')">B팀</button>
-            </div>
-            <select id="name-sel" class="hidden"><option value="">이름을 선택하세요</option></select>
-            <button id="start-btn" onclick="start()" class="hidden" style="background:#2ecc71; margin-top:15px;">시험 시작</button>
+        <div id="loading-screen">
+            <p>데이터 로딩 중...</p>
+            <div class="loader"></div>
         </div>
-        <div id="exam-box" class="hidden">
-            <p><span id="c-idx">0</span> / <span id="t-idx">0</span></p>
-            <h1 id="q-word" style="font-size: 2.2rem; margin: 20px 0;"></h1>
-            <input type="text" id="ans-in" placeholder="뜻 입력" autocomplete="off">
-            <button onclick="next()">다음 문제</button>
+
+        <div id="login-screen" class="hidden">
+            <h2 id="team-title">단어 시험</h2>
+            <select id="name-select"><option value="">이름을 선택하세요</option></select>
+            <button onclick="startExam()">시험 시작</button>
         </div>
-        <div id="result-box" class="hidden">
+
+        <div id="exam-screen" class="hidden">
+            <p>문제 <span id="current-idx">1</span> / <span id="total-idx">0</span></p>
+            <h1 id="question-word" style="font-size: 2.5rem; margin: 1rem 0;"></h1>
+            <input type="text" id="answer-input" placeholder="뜻을 입력하세요" autocomplete="off">
+            <button onclick="nextQuestion()">다음</button>
+        </div>
+
+        <div id="result-screen" class="hidden">
             <h2>시험 종료! 🎉</h2>
-            <h1 id="score-text" style="font-size: 3rem; color: #4a90e2; margin: 15px 0;"></h1>
-            <div id="wrong-list" style="max-height: 250px; overflow-y: auto;"></div>
+            <p style="font-size: 2rem; font-weight: bold;"><span id="final-score">0</span> / <span id="final-total">0</span></p>
+            <div id="wrong-list" style="max-height: 300px; overflow-y: auto;"></div>
             <button onclick="location.reload()" style="margin-top:20px;">처음으로</button>
         </div>
     </div>
 
     <script>
-        /** ★ 구글 앱스크립트 [새 배포 URL]을 입력하세요 ★ **/
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz3fPJLbXd43ihgm_lCu6hSOOHtqgkdEtTPNbeRqKCKJ-vFZ1eXpQ_4tOeTnk2AN7d27w/exec";
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqA7_CQ-kvppUJ3iurfXQdbW2IEvhaJzuiEJcviw018TKx-crdwTH9_uFeUo7kLUE5/exec'; 
+        const urlParams = new URLSearchParams(window.location.search);
+        const TEAM = urlParams.get('team') || 'B';
+        
+        let questions = [], names = [], currentIdx = 0, answers = [], submittedToday = [];
 
-        let namesByTeam = {}, questions = [], submittedToday = [], currentIdx = 0, answers = [], team = "";
-
-        window.onload = () => {
-            fetch(SCRIPT_URL + "?type=init")
-            .then(res => res.json())
-            .then(d => {
-                namesByTeam = d.namesByTeam; submittedToday = d.submittedToday;
-                document.getElementById('load-box').classList.add('hidden');
-                document.getElementById('login-box').classList.remove('hidden');
-            });
+        window.onload = async () => {
+            try {
+                const res = await fetch(`${SCRIPT_URL}?team=${TEAM}&v=${Math.random()}`);
+                const data = await res.json();
+                questions = data.questions;
+                names = data.names;
+                submittedToday = data.submittedToday || [];
+                document.getElementById('team-title').innerText = `단어 시험 (${TEAM}팀)`;
+                const select = document.getElementById('name-select');
+                names.forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = opt.text = n;
+                    select.add(opt);
+                });
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('login-screen').classList.remove('hidden');
+            } catch (e) { alert('데이터 로드 실패!'); }
         };
 
-        function setT(t) {
-            team = t;
-            document.getElementById('btnA').className = (t==='A'?'team-btn active':'team-btn');
-            document.getElementById('btnB').className = (t==='B'?'team-btn active':'team-btn');
-            const sel = document.getElementById('name-sel');
-            sel.innerHTML = '<option value="">이름 선택</option>';
-            namesByTeam[t].forEach(n => { const opt = document.createElement('option'); opt.text = opt.value = n; sel.add(opt); });
-            sel.classList.remove('hidden'); document.getElementById('start-btn').classList.remove('hidden');
+        function startExam() {
+            const name = document.getElementById('name-select').value;
+            if(!name) return alert('이름을 선택하세요!');
+            if (submittedToday.includes(name)) return alert('이미 오늘 시험을 제출했습니다!');
+            if(!confirm("시험을 시작하시겠습니까?")) return;
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('exam-screen').classList.remove('hidden');
+            document.getElementById('total-idx').innerText = questions.length;
+            showQuestion();
         }
 
-        function start() {
-            const name = document.getElementById('name-sel').value;
-            if(!name || !team) return alert('팀과 이름을 선택하세요!');
-            if(submittedToday.includes(name + "|" + team)) return alert('이미 오늘 제출했습니다!');
-            document.getElementById('login-box').innerHTML = '<div class="loader"></div>';
-            fetch(SCRIPT_URL + "?type=quiz&team=" + team)
-            .then(res => res.json())
-            .then(d => {
-                questions = d.questions;
-                document.getElementById('login-box').classList.add('hidden');
-                document.getElementById('exam-box').classList.remove('hidden');
-                document.getElementById('t-idx').innerText = questions.length;
-                show();
-            });
+        function showQuestion() {
+            document.getElementById('question-word').innerText = questions[currentIdx].eng;
+            document.getElementById('current-idx').innerText = currentIdx + 1;
+            const input = document.getElementById('answer-input');
+            input.value = '';
+            input.focus();
         }
 
-        function show() {
-            document.getElementById('q-word').innerText = questions[currentIdx].eng;
-            document.getElementById('c-idx').innerText = currentIdx + 1;
-            document.getElementById('ans-in').value = ''; document.getElementById('ans-in').focus();
+        function superClean(t) {
+            if(!t) return "";
+            return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim();
         }
 
-        function clean(t) { return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim(); }
-
-        function next() {
-            const u = document.getElementById('ans-in').value.trim() || "(빈칸)";
-            const c = questions[currentIdx].kor;
-            const isCorrect = u.split(/[,/]/).map(v => clean(v)).some(v => c.split('/').map(x => clean(x)).includes(v));
-            answers.push({ eng: questions[currentIdx].eng, correctAns: c, userAns: u, isCorrect: isCorrect });
+        function nextQuestion() {
+            const inputEl = document.getElementById('answer-input');
+            const userAnsRaw = inputEl.value.trim() || "(빈칸)";
+            const correctAnsRaw = questions[currentIdx].kor;
+            
+            const correctAnswers = correctAnsRaw.split('/').map(ans => superClean(ans));
+            const userAnswers = userAnsRaw.split(/[,/]/).map(ans => superClean(ans)).filter(ans => ans !== "");
+            
+            const isCorrect = userAnswers.some(uAns => correctAnswers.includes(uAns));
+            
+            answers.push({ eng: questions[currentIdx].eng, correctAns: correctAnsRaw, userAns: userAnsRaw, isCorrect: isCorrect });
             currentIdx++;
-            if(currentIdx < questions.length) show(); else finish();
+            if(currentIdx < questions.length) showQuestion();
+            else submitResult();
         }
 
-        // ★ 최종 해결책: 이미지 비콘 전송
-        function finish() {
-            // 1. 즉시 화면 전환
-            document.getElementById('exam-box').classList.add('hidden');
-            document.getElementById('result-box').classList.remove('hidden');
-            
-            const score = answers.filter(a => a.isCorrect).length;
-            const total = answers.length;
-            document.getElementById('score-text').innerText = score + " / " + total;
-            
-            const list = document.getElementById('wrong-list');
-            const wrongs = answers.filter(a => !a.isCorrect);
-            let wrongDetails = wrongs.map(a => `${a.eng}(${a.correctAns})`).join(", ");
+        async function submitResult() {
+            const app = document.getElementById('app');
+            const name = document.getElementById('name-select').value;
+            app.innerHTML = '<h2>결과 전송 중...</h2><div class="loader"></div>';
 
-            if(wrongs.length === 0) {
-                list.innerHTML = '<p style="text-align:center;">모두 정답입니다! 👍</p>';
-                confetti();
-            } else {
-                wrongs.forEach(a => {
-                    const d = document.createElement('div'); d.className = 'wrong-item';
-                    d.innerHTML = `<strong>${a.eng}</strong>: ${a.correctAns}<br>입력: <span style="color:red">${a.userAns}</span>`;
-                    list.appendChild(d);
+            try {
+                await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ fullName: name, team: TEAM, answers: answers }) });
+                const score = answers.filter(a => a.isCorrect).length;
+                app.innerHTML = `
+                    <h2>시험 종료! 🎉</h2>
+                    <div style="font-size: 2.5rem; font-weight: bold; color: #4a90e2; margin: 1rem 0;">${score} / ${answers.length}</div>
+                    <div id="wrong-box" style="text-align:left; max-height:300px; overflow-y:auto; margin-bottom:20px;"></div>
+                    <button onclick="location.reload()">처음으로</button>
+                `;
+                const wrongBox = document.getElementById('wrong-box');
+                answers.filter(a => !a.isCorrect).forEach(a => {
+                    const div = document.createElement('div');
+                    div.className = 'wrong-item';
+                    div.innerHTML = `<strong>${a.eng}</strong><br>정답: ${a.correctAns}<br>입력: <span style="color:red">${a.userAns}</span>`;
+                    wrongBox.appendChild(div);
                 });
-            }
-
-            // 2. 백그라운드 전송 (이미지 비콘 방식)
-            const name = document.getElementById('name-sel').value;
-            const finalUrl = SCRIPT_URL + 
-                "?type=save" +
-                "&name=" + encodeURIComponent(name) +
-                "&score=" + score +
-                "&total=" + total +
-                "&team=" + team +
-                "&wrong=" + encodeURIComponent(wrongDetails || "없음");
-
-            // 이미지 객체를 생성하여 주소를 호출 (브라우저가 차단하지 못함)
-            const img = new Image();
-            img.src = finalUrl;
+                if(score === answers.length) confetti();
+            } catch (e) { alert('전송 오류 발생!'); }
         }
-        document.getElementById('ans-in').addEventListener('keypress', e => { if(e.key === 'Enter') next(); });
+
+        document.getElementById('answer-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') nextQuestion(); });
     </script>
 </body>
 </html>
