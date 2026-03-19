@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,136 +7,137 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         :root { --primary: #4a90e2; --bg: #f5f7fa; }
-        body { font-family: 'Pretendard', -apple-system, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        #app { background: white; width: 90%; max-width: 500px; padding: 2rem; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        #app { background: white; width: 95%; max-width: 450px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
         .hidden { display: none; }
-        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 1rem; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 1rem; }
         button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; }
-        .wrong-item { background: #fff1f0; border: 1px solid #ffa39e; padding: 12px; margin: 8px 0; border-radius: 8px; text-align: left; font-size: 0.95rem; }
+        .team-btns { display: flex; gap: 8px; margin: 10px 0; }
+        .team-btn { flex: 1; background: #eee; color: #333; }
+        .team-btn.active { background: var(--primary); color: white; }
+        .wrong-item { background: #fff1f0; border: 1px solid #ffa39e; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: left; font-size: 0.9rem; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div id="app">
-        <div id="loading-screen">
-            <p>데이터 로딩 중...</p>
-            <div class="loader"></div>
+        <div id="load-box"><h3>데이터 로딩 중...</h3><div class="loader"></div></div>
+        
+        <div id="login-box" class="hidden">
+            <h2>단어 시험</h2>
+            <div class="team-btns">
+                <button type="button" class="team-btn" id="btnA" onclick="setT('A')">A팀</button>
+                <button type="button" class="team-btn" id="btnB" onclick="setT('B')">B팀</button>
+            </div>
+            <select id="name-sel" class="hidden"><option value="">이름 선택</option></select>
+            <button id="start-btn" onclick="start()" class="hidden" style="background:#2ecc71;">시험 시작</button>
         </div>
 
-        <div id="login-screen" class="hidden">
-            <h2 id="team-title">단어 시험</h2>
-            <select id="name-select"><option value="">이름을 선택하세요</option></select>
-            <button onclick="startExam()">시험 시작</button>
+        <div id="exam-box" class="hidden">
+            <p><span id="c-idx">0</span> / <span id="t-idx">0</span></p>
+            <h1 id="q-word" style="font-size: 2.2rem; margin: 20px 0;"></h1>
+            <input type="text" id="ans-in" placeholder="뜻 입력" autocomplete="off">
+            <button onclick="next()">다음 문제</button>
         </div>
 
-        <div id="exam-screen" class="hidden">
-            <p>문제 <span id="current-idx">1</span> / <span id="total-idx">0</span></p>
-            <h1 id="question-word" style="font-size: 2.5rem; margin: 1rem 0;"></h1>
-            <input type="text" id="answer-input" placeholder="뜻을 입력하세요" autocomplete="off">
-            <button onclick="nextQuestion()">다음</button>
-        </div>
-
-        <div id="result-screen" class="hidden">
-            <h2>시험 종료! 🎉</h2>
-            <p style="font-size: 2rem; font-weight: bold;"><span id="final-score">0</span> / <span id="final-total">0</span></p>
-            <div id="wrong-list" style="max-height: 300px; overflow-y: auto;"></div>
-            <button onclick="location.reload()" style="margin-top:20px;">처음으로</button>
+        <div id="result-box" class="hidden">
+            <h2>시험 결과</h2>
+            <h1 id="score-text" style="font-size: 3rem; color: #4a90e2;"></h1>
+            <div id="wrong-list" style="max-height: 250px; overflow-y: auto;"></div>
+            <button onclick="location.reload()">처음으로</button>
         </div>
     </div>
 
     <script>
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkYuE787GAeER13m3KU4DB3RIafaNmhk-Q6txDD8Y-oplGOS0KN3uJDpgLX1IS17UYAQ/exec'; 
-        const urlParams = new URLSearchParams(window.location.search);
-        const TEAM = urlParams.get('team') || 'A';
-        
-        let questions = [], names = [], currentIdx = 0, answers = [], submittedToday = [];
+        /** ★ 여기에 배포한 앱스크립트 URL을 넣으세요 ★ **/
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzvhrJiUs-XuAVVTksabYcRXRQOeExp7TGdiWBHauWmEHPnFC1Y-Lgdg0vOlkGXbp3wVQ/exec";
 
-        window.onload = async () => {
-            try {
-                const res = await fetch(`${SCRIPT_URL}?team=${TEAM}&v=${Math.random()}`);
-                const data = await res.json();
-                questions = data.questions;
-                names = data.names;
-                submittedToday = data.submittedToday || [];
-                document.getElementById('team-title').innerText = `단어 시험 (${TEAM}팀)`;
-                const select = document.getElementById('name-select');
-                names.forEach(n => {
-                    const opt = document.createElement('option');
-                    opt.value = opt.text = n;
-                    select.add(opt);
-                });
-                document.getElementById('loading-screen').classList.add('hidden');
-                document.getElementById('login-screen').classList.remove('hidden');
-            } catch (e) { alert('데이터 로드 실패!'); }
+        let namesByTeam = {}, questions = [], submittedToday = [], currentIdx = 0, answers = [], team = "";
+
+        // 1. 초기 로드
+        window.onload = () => {
+            fetch(SCRIPT_URL + "?type=init")
+            .then(res => res.json())
+            .then(d => {
+                namesByTeam = d.namesByTeam; submittedToday = d.submittedToday;
+                document.getElementById('load-box').classList.add('hidden');
+                document.getElementById('login-box').classList.remove('hidden');
+            });
         };
 
-        function startExam() {
-            const name = document.getElementById('name-select').value;
-            if(!name) return alert('이름을 선택하세요!');
-            if (submittedToday.includes(name)) return alert('이미 오늘 시험을 제출했습니다!');
-            if(!confirm("시험을 시작하시겠습니까?")) return;
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('exam-screen').classList.remove('hidden');
-            document.getElementById('total-idx').innerText = questions.length;
-            showQuestion();
+        function setT(t) {
+            team = t;
+            document.getElementById('btnA').classList.toggle('active', t === 'A');
+            document.getElementById('btnB').classList.toggle('active', t === 'B');
+            const sel = document.getElementById('name-sel');
+            sel.innerHTML = '<option value="">이름 선택</option>';
+            namesByTeam[t].forEach(n => { const opt = document.createElement('option'); opt.text = opt.value = n; sel.add(opt); });
+            sel.classList.remove('hidden');
+            document.getElementById('start-btn').classList.remove('hidden');
         }
 
-        function showQuestion() {
-            document.getElementById('question-word').innerText = questions[currentIdx].eng;
-            document.getElementById('current-idx').innerText = currentIdx + 1;
-            const input = document.getElementById('answer-input');
-            input.value = '';
-            input.focus();
+        function start() {
+            const name = document.getElementById('name-sel').value;
+            if(!name || !team) return;
+            if(submittedToday.includes(name + "|" + team)) return alert('이미 제출함!');
+            
+            document.getElementById('login-box').innerHTML = '<div class="loader"></div>';
+            fetch(SCRIPT_URL + "?type=quiz&team=" + team)
+            .then(res => res.json())
+            .then(d => {
+                questions = d.questions;
+                document.getElementById('login-box').classList.add('hidden');
+                document.getElementById('exam-box').classList.remove('hidden');
+                document.getElementById('t-idx').innerText = questions.length;
+                show();
+            });
         }
 
-        function superClean(t) {
-            if(!t) return "";
-            return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim();
+        function show() {
+            document.getElementById('q-word').innerText = questions[currentIdx].eng;
+            document.getElementById('c-idx').innerText = currentIdx + 1;
+            document.getElementById('ans-in').value = ''; document.getElementById('ans-in').focus();
         }
 
-        function nextQuestion() {
-            const inputEl = document.getElementById('answer-input');
-            const userAnsRaw = inputEl.value.trim() || "(빈칸)";
-            const correctAnsRaw = questions[currentIdx].kor;
-            
-            const correctAnswers = correctAnsRaw.split('/').map(ans => superClean(ans));
-            const userAnswers = userAnsRaw.split(/[,/]/).map(ans => superClean(ans)).filter(ans => ans !== "");
-            
-            const isCorrect = userAnswers.some(uAns => correctAnswers.includes(uAns));
-            
-            answers.push({ eng: questions[currentIdx].eng, correctAns: correctAnsRaw, userAns: userAnsRaw, isCorrect: isCorrect });
+        function clean(t) { return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim(); }
+
+        function next() {
+            const u = document.getElementById('ans-in').value.trim() || "(빈칸)";
+            const c = questions[currentIdx].kor;
+            const isCorrect = u.split(/[,/]/).map(v => clean(v)).some(v => c.split('/').map(x => clean(x)).includes(v));
+            answers.push({ eng: questions[currentIdx].eng, correctAns: c, userAns: u, isCorrect: isCorrect });
             currentIdx++;
-            if(currentIdx < questions.length) showQuestion();
-            else submitResult();
+            if(currentIdx < questions.length) show(); else submit();
         }
 
-        async function submitResult() {
-            const app = document.getElementById('app');
-            const name = document.getElementById('name-select').value;
-            app.innerHTML = '<h2>결과 전송 중...</h2><div class="loader"></div>';
+        // ★ 깃허브 복귀의 핵심: 무한 로딩 없는 제출
+        function submit() {
+            const payload = { fullName: document.getElementById('name-sel').value, team: team, answers: answers };
+            
+            // 1. 서버에 데이터 전송 (no-cors로 응답 안 기다리고 던짐)
+            fetch(SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors",
+                body: JSON.stringify(payload)
+            });
 
-            try {
-                await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ fullName: name, team: TEAM, answers: answers }) });
+            // 2. 즉시 화면 전환 (0.3초 뒤)
+            setTimeout(() => {
+                document.getElementById('exam-box').classList.add('hidden');
+                document.getElementById('result-box').classList.remove('hidden');
                 const score = answers.filter(a => a.isCorrect).length;
-                app.innerHTML = `
-                    <h2>시험 종료! 🎉</h2>
-                    <div style="font-size: 2.5rem; font-weight: bold; color: #4a90e2; margin: 1rem 0;">${score} / ${answers.length}</div>
-                    <div id="wrong-box" style="text-align:left; max-height:300px; overflow-y:auto; margin-bottom:20px;"></div>
-                    <button onclick="location.reload()">처음으로</button>
-                `;
-                const wrongBox = document.getElementById('wrong-box');
+                document.getElementById('score-text').innerText = score + " / " + answers.length;
+                const list = document.getElementById('wrong-list');
                 answers.filter(a => !a.isCorrect).forEach(a => {
-                    const div = document.createElement('div');
-                    div.className = 'wrong-item';
-                    div.innerHTML = `<strong>${a.eng}</strong><br>정답: ${a.correctAns}<br>입력: <span style="color:red">${a.userAns}</span>`;
-                    wrongBox.appendChild(div);
+                    const d = document.createElement('div'); d.className = 'wrong-item';
+                    d.innerHTML = `<strong>${a.eng}</strong>: ${a.correctAns}<br>입력: ${a.userAns}`;
+                    list.appendChild(d);
                 });
                 if(score === answers.length) confetti();
-            } catch (e) { alert('전송 오류 발생!'); }
+            }, 300);
         }
-
-        document.getElementById('answer-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') nextQuestion(); });
+        document.getElementById('ans-in').addEventListener('keypress', e => { if(e.key === 'Enter') next(); });
     </script>
 </body>
 </html>
