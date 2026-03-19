@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,14 +8,15 @@
     <style>
         :root { --primary: #4a90e2; --bg: #f5f7fa; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        #app { background: white; width: 95%; max-width: 450px; padding: 20px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+        #app { background: white; width: 95%; max-width: 450px; padding: 2rem; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
         .hidden { display: none !important; }
         input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 1rem; }
-        button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; }
+        button { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:active { transform: scale(0.98); opacity: 0.9; }
         .team-btns { display: flex; gap: 8px; margin: 10px 0; }
         .team-btn { flex: 1; background: #eee; color: #333; border: 2px solid transparent; }
         .team-btn.active { background: var(--primary); color: white; border-color: #2a6dbd; }
-        .wrong-item { background: #fff1f0; border: 1px solid #ffa39e; padding: 10px; margin: 5px 0; border-radius: 8px; text-align: left; font-size: 0.9rem; }
+        .wrong-item { background: #fff1f0; border: 1px solid #ffa39e; padding: 12px; margin: 8px 0; border-radius: 8px; text-align: left; font-size: 0.95rem; }
         .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -23,61 +24,76 @@
 <body>
     <div id="app">
         <div id="load-box"><h3>데이터 로딩 중...</h3><div class="loader"></div></div>
+        
         <div id="login-box" class="hidden">
             <h2>단어 시험</h2>
+            <p style="font-size:0.9rem; color:#888;">팀을 먼저 선택한 후 이름을 골라주세요.</p>
             <div class="team-btns">
                 <button type="button" class="team-btn" id="btnA" onclick="setT('A')">A팀</button>
                 <button type="button" class="team-btn" id="btnB" onclick="setT('B')">B팀</button>
             </div>
-            <select id="name-sel" class="hidden"><option value="">이름 선택</option></select>
-            <button id="start-btn" onclick="start()" class="hidden" style="background:#2ecc71;">시험 시작</button>
+            <select id="name-sel" class="hidden"><option value="">이름을 선택하세요</option></select>
+            <button id="start-btn" onclick="start()" class="hidden" style="background:#2ecc71; margin-top:15px;">시험 시작하기</button>
         </div>
+
         <div id="exam-box" class="hidden">
-            <p><span id="c-idx">0</span> / <span id="t-idx">0</span></p>
-            <h1 id="q-word" style="font-size: 2.2rem; margin: 20px 0;"></h1>
-            <input type="text" id="ans-in" placeholder="뜻 입력" autocomplete="off">
+            <p style="font-size:0.9rem; color:#666;"><span id="c-idx">0</span> / <span id="t-idx">0</span></p>
+            <h1 id="q-word" style="font-size: 2.3rem; margin: 1.5rem 0; word-break: break-all;"></h1>
+            <input type="text" id="ans-in" placeholder="뜻을 입력하세요" autocomplete="off">
             <button onclick="next()">다음 문제</button>
         </div>
+
         <div id="result-box" class="hidden">
             <h2>시험 종료! 🎉</h2>
-            <h1 id="score-text" style="font-size: 3rem; color: #4a90e2; margin: 15px 0;"></h1>
-            <div id="wrong-list" style="max-height: 250px; overflow-y: auto;"></div>
+            <h1 id="score-text" style="color:#4a90e2; font-size:3.5rem; margin: 15px 0;">0 / 0</h1>
+            <div id="wrong-list" style="max-height: 250px; overflow-y: auto; text-align:left; border-top: 1px solid #eee; padding-top: 10px;"></div>
             <button onclick="location.reload()" style="margin-top:20px;">처음으로</button>
         </div>
     </div>
 
     <script>
-        /** ★ 선생님의 새 배포 URL을 여기에 넣으세요 ★ **/
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyhro_WaFQt2YuGmZEtqneIvk3APROwqoMqvr4cHpyiVfb9_e6LwpgN8hUB-xxcPjdVw/exec";
+        /** ★ 구글 앱스크립트 배포 주소를 아래에 넣으세요 ★ **/
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz0Ekb8WClzRAuIWijdEm59FE9HvspWtVK1KwHgf5Qlz4Co0ZCYDY4k_U13SljOr9Vapg/exec";
 
         let namesByTeam = {}, questions = [], submittedToday = [], currentIdx = 0, answers = [], team = "";
 
+        // 페이지 접속 시 명단 및 중복체크 데이터 가져오기
         window.onload = () => {
             fetch(SCRIPT_URL + "?type=init")
             .then(res => res.json())
             .then(d => {
-                namesByTeam = d.namesByTeam; submittedToday = d.submittedToday;
+                namesByTeam = d.namesByTeam; 
+                submittedToday = d.submittedToday;
                 document.getElementById('load-box').classList.add('hidden');
                 document.getElementById('login-box').classList.remove('hidden');
-            }).catch(e => alert("데이터를 불러오지 못했습니다. URL을 확인하세요."));
+            }).catch(e => alert("데이터를 불러오지 못했습니다. 앱스크립트 배포 설정을 확인하세요."));
         };
 
+        // 팀 선택
         function setT(t) {
             team = t;
             document.getElementById('btnA').className = (t==='A'?'team-btn active':'team-btn');
             document.getElementById('btnB').className = (t==='B'?'team-btn active':'team-btn');
             const sel = document.getElementById('name-sel');
-            sel.innerHTML = '<option value="">이름 선택</option>';
-            namesByTeam[t].forEach(n => { const opt = document.createElement('option'); opt.text = opt.value = n; sel.add(opt); });
-            sel.classList.remove('hidden');
-            document.getElementById('start-btn').classList.remove('hidden');
+            sel.innerHTML = '<option value="">이름을 선택하세요</option>';
+            if(namesByTeam[t]) {
+                namesByTeam[t].forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.text = opt.value = n;
+                    sel.add(opt);
+                });
+                sel.classList.remove('hidden');
+                document.getElementById('start-btn').classList.remove('hidden');
+            }
         }
 
+        // 시험 시작
         function start() {
             const name = document.getElementById('name-sel').value;
-            if(!name || !team) return alert('선택 필수!');
-            if(submittedToday.includes(name + "|" + team)) return alert('이미 오늘 제출했습니다!');
-            document.getElementById('login-box').innerHTML = '<div class="loader"></div>';
+            if(!name || !team) return alert('팀과 이름을 선택하세요!');
+            if(submittedToday.includes(name + "|" + team)) return alert('이미 오늘 시험을 제출했습니다!');
+            
+            document.getElementById('login-box').innerHTML = '<h3>시험지 로드 중...</h3><div class="loader"></div>';
             fetch(SCRIPT_URL + "?type=quiz&team=" + team)
             .then(res => res.json())
             .then(d => {
@@ -89,47 +105,70 @@
             });
         }
 
+        // 문제 표시
         function show() {
             document.getElementById('q-word').innerText = questions[currentIdx].eng;
             document.getElementById('c-idx').innerText = currentIdx + 1;
-            document.getElementById('ans-in').value = ''; document.getElementById('ans-in').focus();
+            const input = document.getElementById('ans-in');
+            input.value = ''; input.focus();
         }
 
-        function clean(t) { return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim(); }
+        // 정답 비교용 클리닝
+        function clean(t) {
+            return t.toString().replace(/\s+/g, "").replace(/[~?ㆍ!@#$%^&*()_+\-.]/g, "").replace(/[이가을를은는와과로으로에의]/g, "").trim();
+        }
 
+        // 다음 문제 클릭
         function next() {
             const u = document.getElementById('ans-in').value.trim() || "(빈칸)";
             const c = questions[currentIdx].kor;
             const isCorrect = u.split(/[,/]/).map(v => clean(v)).some(v => c.split('/').map(x => clean(x)).includes(v));
+            
             answers.push({ eng: questions[currentIdx].eng, correctAns: c, userAns: u, isCorrect: isCorrect });
             currentIdx++;
-            if(currentIdx < questions.length) show(); else submit();
+            
+            if(currentIdx < questions.length) show(); 
+            else finish();
         }
 
-        // ★ 이번 코드의 핵심: 화면 전환부터 하고 전송은 나중에!
-        function submit() {
-            // 1. 즉시 화면 전환
+        // ★ 최종 제출 (보안 우회 및 무한로딩 방지)
+        function finish() {
+            // 1. 화면 즉시 전환 (서버 응답 상관없이)
             document.getElementById('exam-box').classList.add('hidden');
             document.getElementById('result-box').classList.remove('hidden');
             
             const score = answers.filter(a => a.isCorrect).length;
             document.getElementById('score-text').innerText = score + " / " + answers.length;
+            
             const list = document.getElementById('wrong-list');
-            answers.filter(a => !a.isCorrect).forEach(a => {
-                const d = document.createElement('div'); d.className = 'wrong-item';
-                d.innerHTML = `<strong>${a.eng}</strong>: ${a.correctAns}<br>입력: ${a.userAns}`;
-                list.appendChild(d);
-            });
-            if(score === answers.length) confetti();
+            const wrongs = answers.filter(a => !a.isCorrect);
+            if(wrongs.length === 0) {
+                list.innerHTML = '<p style="text-align:center; font-weight:bold;">모두 정답입니다! 완벽해요! 👍</p>';
+                confetti();
+            } else {
+                wrongs.forEach(a => {
+                    const d = document.createElement('div'); d.className = 'wrong-item';
+                    d.innerHTML = `<strong>${a.eng}</strong>: ${a.correctAns}<br>입력: <span style="color:red">${a.userAns}</span>`;
+                    list.appendChild(d);
+                });
+            }
 
-            // 2. 백그라운드에서 조용히 전송 (에러가 나도 학생은 모름)
-            const payload = { fullName: document.getElementById('name-sel').value, team: team, answers: answers };
+            // 2. 백그라운드에서 조용히 전송 (no-cors 모드)
+            const payload = {
+                fullName: document.getElementById('name-sel').value,
+                team: team,
+                answers: answers
+            };
+
             fetch(SCRIPT_URL, {
                 method: "POST",
-                mode: "no-cors",
+                mode: "no-cors", // 보안 정책 우회의 핵심
+                headers: { "Content-Type": "text/plain" }, // 단순 텍스트로 위장
                 body: JSON.stringify(payload)
-            }).catch(e => console.log("전송은 실패했지만 화면은 넘어감"));
+            }).catch(e => console.log("전송 시도됨"));
         }
+
+        // 엔터키 지원
         document.getElementById('ans-in').addEventListener('keypress', e => { if(e.key === 'Enter') next(); });
     </script>
 </body>
